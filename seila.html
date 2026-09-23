@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gerador de Placas Promocionais</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --ink:#141414;
+    --paper:#efece4;
+    --line:#d9d3c4;
+    --accent:#c1121f;
+    --muted:#77705f;
+    --card:#ffffff;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#1b1914;
+      --line:#3a352a;
+      --muted:#a89f8c;
+      --card:#242019;
+      --ink:#f2efe6;
+    }
+  }
+  *{box-sizing:border-box;}
+  html{scroll-padding-top:env(safe-area-inset-top,0px);}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Poppins',-apple-system,Helvetica,Arial,sans-serif;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  .wrap{
+    max-width:1100px;
+    margin:0 auto;
+    padding:40px 24px 80px;
+    display:grid;
+    grid-template-columns:360px 1fr;
+    gap:36px;
+    align-items:start;
+  }
+  @media (max-width:760px){
+    .wrap{grid-template-columns:1fr;}
+  }
+  h1{font-size:24px;font-weight:700;margin:0 0 4px;}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 28px;line-height:1.5;max-width:60ch;}
+
+  .panel{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:22px;
+  }
+  label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:16px 0 6px;}
+  label:first-of-type{margin-top:0;}
+  input{
+    width:100%;
+    padding:10px 12px;
+    font-size:15px;
+    font-family:inherit;
+    border:1px solid var(--line);
+    border-radius:4px;
+    background:var(--paper);
+    color:var(--ink);
+  }
+  input:focus{outline:2px solid var(--accent);outline-offset:1px;}
+
+  .btn-row{display:flex;flex-direction:column;gap:10px;margin-top:22px;}
+  button{
+    font-family:inherit;
+    font-size:14px;
+    font-weight:700;
+    padding:12px 16px;
+    border-radius:4px;
+    border:1px solid var(--accent);
+    background:var(--accent);
+    color:#fff;
+    cursor:pointer;
+  }
+  button:hover{filter:brightness(0.93);}
+  button.secondary{background:transparent;color:var(--ink);border-color:var(--line);}
+  button.secondary:hover{border-color:var(--muted);filter:none;}
+  .dl-row{display:flex;gap:10px;}
+  .dl-row button{flex:1;}
+
+  .preview-col{display:flex;flex-direction:column;align-items:center;gap:16px;}
+  .preview-label{align-self:flex-start;font-size:12px;font-weight:600;color:var(--muted);}
+
+  /* ---- TAG ----
+     Medidas extraídas da imagem de referência (1414 px de largura = 390 px de CSS).
+     Todos os blocos ocupam 100% da largura útil => compartilham o mesmo eixo central da placa. */
+  #tagCard{
+    width:390px;
+    aspect-ratio:1414/1991;
+    background:#fff;
+    position:relative;
+    overflow:hidden;
+    box-shadow:0 2px 14px rgba(0,0,0,.14);
+    display:flex;
+    flex-direction:column;
+  }
+  .tag-header{
+    position:relative;
+    height:20%;
+    min-height:20%;
+    background:radial-gradient(ellipse at 50% -20%, #e4453e 0%, #b8121a 55%, #7a0508 100%);
+    border-radius:0 0 46% 54% / 0 0 43.5% 54.4%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:15.5px;
+    padding:0 14px 10px;
+  }
+  .logo{
+    color:#fff;
+    font-family:'Montserrat',sans-serif;
+    font-weight:900;
+    line-height:0.95;
+    text-align:left;
+    position:relative;
+    top:-1.2px;
+  }
+  .logo .l1{font-size:15px;letter-spacing:.01em;}
+  .logo .l1 .accent{color:#3a0203;}
+  .logo .l2{font-size:19px;}
+  .divider{width:2px;align-self:stretch;background:rgba(255,255,255,.55);margin:2px 0;}
+
+  .tag-body{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    padding:0 20px;
+  }
+  .tag-body > *{width:100%;margin-left:0;margin-right:0;}
+  .center-row{display:flex;justify-content:center;align-items:center;}
+
+  /* Nome: bloco fixo de 2 linhas (2 x 35px), centralizado no eixo */
+  .prod-name{
+    margin-top:48.5px;
+    height:70px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    font-family:'Montserrat',sans-serif;
+    font-weight:800;
+    font-size:33.6px;
+    line-height:35px;
+    color:#141414;
+  }
+  .pn-line{width:100%;text-align:center;white-space:nowrap;}
+
+  /* Preço anterior */
+  .old-row{margin-top:17.8px;}
+  .old-wrap{position:relative;display:inline-block;}
+  .old-badge{
+    height:44px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border:3px solid var(--accent);
+    border-radius:999px;
+    padding:2px 22px 0;
+    background:#fff;
+    color:var(--accent);
+    font-family:'Montserrat',sans-serif;
+    font-weight:800;
+    font-size:23.6px;
+    line-height:1;
+    white-space:nowrap;
+  }
+  .strike-line{
+    position:absolute;
+    left:6.5%;
+    right:6.5%;
+    top:50%;
+    height:3px;
+    background:var(--accent);
+    transform:translateY(-50%) rotate(-8.3deg);
+  }
+
+  /* Preço promocional: POR: + R$ + inteiro + centavos + CADA = um único conjunto centralizado */
+  .price-row-wrap{margin-top:22.2px;}
+  .price-block{
+    margin:0;
+    width:auto !important;
+    max-width:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+  }
+  .por-label{
+    font-family:'Montserrat',sans-serif;
+    font-weight:800;
+    font-size:24.4px;
+    line-height:1;
+    color:#141414;
+    margin-bottom:-11.4px;
+  }
+  .price-row{
+    display:flex;
+    align-items:baseline;
+    height:99.5px;
+    line-height:1;
+  }
+  .rs{
+    font-family:'Montserrat',sans-serif;
+    font-weight:800;
+    font-size:26.4px;
+    line-height:1;
+    color:#141414;
+    position:relative;
+    top:-5.9px;
+  }
+  .integer{
+    font-family:'Montserrat',sans-serif;
+    font-weight:900;
+    font-size:99.5px;
+    line-height:1;
+    color:#141414;
+    letter-spacing:-0.02em;
+    margin-left:6.65px;
+  }
+  .cents-cada{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    margin-left:11.2px;
+    position:relative;
+    top:-26.5px;
+  }
+  .cents{
+    font-family:'Montserrat',sans-serif;
+    font-weight:900;
+    font-size:32px;
+    line-height:32px;
+    color:#141414;
+  }
+  .cada{
+    font-family:'Poppins',sans-serif;
+    font-weight:800;
+    font-style:italic;
+    font-size:20px;
+    line-height:20px;
+    color:#141414;
+    margin-top:1.1px;
+  }
+
+  .code-line{
+    font-family:'Poppins',sans-serif;
+    font-weight:700;
+    font-size:11px;
+    line-height:12px;
+    text-align:center;
+    color:#141414;
+    margin-top:42.45px;
+    white-space:nowrap;
+  }
+  .footer-note{
+    font-family:'Poppins',sans-serif;
+    font-style:italic;
+    font-weight:600;
+    font-size:8.5px;
+    line-height:12px;
+    text-align:center;
+    color:#3a3a3a;
+    margin-top:5.25px;
+    white-space:nowrap;
+  }
+
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.4;}
+
+  .file-row{display:flex;gap:8px;align-items:center}
+  .file-row input[type=file]{padding:8px;font-size:13px}
+  .status{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.45}
+  .batch-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+  .batch-actions button{min-width:0}
+  .preview-grid{width:100%;display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:16px}
+  .mini-item{display:flex;flex-direction:column;align-items:center;gap:6px}
+  .mini-item .mini-card{transform-origin:top center;box-shadow:0 1px 8px rgba(0,0,0,.12)}
+  .mini-label{font-size:11px;color:var(--muted);text-align:center;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .batch-hidden{display:none}
+  .mapping{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .mapping select{width:100%;padding:9px;border:1px solid var(--line);border-radius:4px;background:var(--paper);color:var(--ink);font-family:inherit}
+  .mapping label{margin:0}
+  @media(max-width:760px){.batch-actions{grid-template-columns:1fr}.mapping{grid-template-columns:1fr}}
+</style>
+</head>
+
+<body>
+<div class="wrap">
+  <div>
+    <h1>Gerador de placas promocionais</h1>
+    <p class="sub">Gere uma placa individualmente ou importe uma planilha para criar várias placas de uma vez.</p>
+
+    <div class="panel">
+      <label for="arquivo">Importar Excel ou CSV</label>
+      <div class="file-row">
+        <input id="arquivo" type="file" accept=".xlsx,.xls,.csv" />
+      </div>
+      <p class="hint">O Excel deve ter uma linha por produto. A primeira linha deve conter os nomes das colunas.</p>
+
+      <div id="mappingPanel" class="batch-hidden">
+        <label>Mapeamento das colunas</label>
+        <div class="mapping">
+          <div><label>Nome do produto<select id="mapNome"></select></label></div>
+          <div><label>Código<select id="mapCodigo"></select></label></div>
+          <div><label>Valor anterior<select id="mapAnterior"></select></label></div>
+          <div><label>Valor promocional<select id="mapPromo"></select></label></div>
+        </div>
+        <p id="fileStatus" class="status"></p>
+        <div class="batch-actions">
+          <button onclick="gerarTodas()">Gerar todas</button>
+          <button class="secondary" onclick="baixarTodasPNG()">Baixar todas (ZIP)</button>
+          <button class="secondary" onclick="baixarTodasPDF()">Baixar todas (PDF)</button>
+          <button class="secondary" onclick="limparLote()">Limpar lote</button>
+        </div>
+      </div>
+
+      <hr style="border:0;border-top:1px solid var(--line);margin:22px 0">
+
+      <label for="nome">Nome do produto</label>
+      <input id="nome" type="text" placeholder="Ex: JG CSAL CHRME 2,25X2,50" value="JG CSAL CHRME 2,25X2,50">
+
+      <label for="codigo">Código do produto</label>
+      <input id="codigo" type="text" placeholder="Ex: 7909899032921 / 7909899032945" value="7909899032921 / 7909899032945">
+
+      <label for="anterior">Valor anterior</label>
+      <input id="anterior" type="text" inputmode="decimal" placeholder="0,00" value="134,43">
+
+      <label for="promo">Valor promocional</label>
+      <input id="promo" type="text" inputmode="decimal" placeholder="0,00" value="120,99">
+
+      <div class="btn-row">
+        <button onclick="gerarPlaca()">Gerar placa</button>
+        <div class="dl-row">
+          <button class="secondary" onclick="baixarPNG()">Baixar PNG</button>
+          <button class="secondary" onclick="baixarPDF()">Baixar PDF</button>
+        </div>
+      </div>
+      <p class="hint">No modo planilha, os dados são preenchidos automaticamente nos campos correspondentes.</p>
+    </div>
+  </div>
+
+  <div class="preview-col">
+    <span class="preview-label" id="previewLabel">Pré-visualização</span>
+    <div id="tagCard">
+      <div class="tag-header">
+        <div class="logo"><div class="l1">CASAS<span class="accent">DA</span></div><div class="l2">MAMÃE</div></div>
+        <div class="divider"></div>
+        <div class="logo right"><div class="l1">MELHOR</div><div class="l2">DASCASAS</div></div>
+      </div>
+      <div class="tag-body">
+        <div class="prod-name" id="outNome"></div>
+        <div class="center-row old-row"><div class="old-wrap"><div class="old-badge" id="outAnterior">DE: R$ 134,43</div><div class="strike-line"></div></div></div>
+        <div class="center-row price-row-wrap">
+          <div class="price-block">
+            <div class="por-label">POR:</div>
+            <div class="price-row"><span class="rs">R$</span><span class="integer" id="outInt">120</span><span class="cents-cada"><span class="cents" id="outCents">,99</span><span class="cada">CADA</span></span></div>
+          </div>
+        </div>
+        <div class="code-line">CÓD.: <span id="outCodigo">7909899032921 / 7909899032945</span></div>
+        <div class="footer-note">Oferta válida enquanto durarem os estoques.<br>Consulte condições de pagamento e disponibilidade com nossos<br>atendentes.</div>
+      </div>
+    </div>
+    <div id="previewGrid" class="preview-grid"></div>
+  </div>
+</div>
+
+<script>
+let lote = [];
+let colunas = [];
+
+function parseMoney(v){
+  if(v===null || v===undefined || v==='') return NaN;
+  let s=String(v).trim().replace(/[R$\s]/g,'');
+  if(s.includes(',') && s.includes('.')) s=s.replace(/\./g,'').replace(',','.');
+  else if(s.includes(',')) s=s.replace(',','.');
+  return parseFloat(s);
+}
+function fmtBRL(n){ return n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+const NOME_MAX=33.6,NOME_MIN=14,NOME_LARG=350;
+function montarNome(txt){
+  const el=document.getElementById('outNome');
+  const build=lines=>{el.innerHTML='';lines.forEach(l=>{const d=document.createElement('div');d.className='pn-line';const sp=document.createElement('span');sp.textContent=l;d.appendChild(sp);el.appendChild(d);});};
+  const larg=()=>Math.max(...[...el.querySelectorAll('.pn-line span')].map(x=>x.getBoundingClientRect().width),0);
+  const setSize=z=>{el.style.fontSize=z+'px';el.style.lineHeight=(z*35/33.6)+'px';};
+  setSize(NOME_MAX);let lines;
+  if(txt.includes('|')){
+    const parts=txt.split('|').map(x=>x.trim()).filter(Boolean);
+    lines=parts.length>2?[parts[0],parts.slice(1).join(' ')]:parts;
+  }else{
+    build([txt]);lines=[txt];
+    if(larg()>NOME_LARG){const w=txt.split(/\s+/);if(w.length>1){const k=Math.ceil(w.length/2);lines=[w.slice(0,k).join(' '),w.slice(k).join(' ')]}}
+  }
+  build(lines);let z=NOME_MAX;while(z>NOME_MIN&&larg()>NOME_LARG){z-=0.5;setSize(z);}
+}
+
+function preencherPlaca(d){
+  const nome=String(d.nome??'PRODUTO').trim()||'PRODUTO';
+  const codigo=String(d.codigo??'-').trim()||'-';
+  const anterior=parseMoney(d.anterior);
+  const promo=parseMoney(d.promo);
+  montarNome(nome.toUpperCase());
+  document.getElementById('outCodigo').textContent=codigo;
+  document.getElementById('outAnterior').textContent=!isNaN(anterior)?'DE: R$ '+fmtBRL(anterior):'DE: R$ 0,00';
+  if(!isNaN(promo)){
+    const [i,c]=fmtBRL(promo).split(',');
+    document.getElementById('outInt').textContent=i;
+    document.getElementById('outCents').textContent=','+c;
+  }
+}
+function gerarPlaca(){
+  preencherPlaca({
+    nome:document.getElementById('nome').value,
+    codigo:document.getElementById('codigo').value,
+    anterior:document.getElementById('anterior').value,
+    promo:document.getElementById('promo').value
+  });
+}
+
+function normalizar(s){
+  return String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+}
+function encontrarColuna(aliases){
+  return colunas.find(c=>aliases.some(a=>normalizar(c).includes(normalizar(a)))) || colunas[0];
+}
+function preencherSelect(id, sugerido){
+  const sel=document.getElementById(id);sel.innerHTML='';
+  colunas.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
+  if(colunas.includes(sugerido)) sel.value=sugerido;
+}
+function configurarMapeamento(){
+  const nome=encontrarColuna(['nome','produto','descricao','descrição']);
+  const codigo=encontrarColuna(['codigo','código','ean','gtin']);
+  const anterior=encontrarColuna(['anterior','de','preco anterior','preço anterior','preco de']);
+  const promo=encontrarColuna(['promo','promocional','oferta','por','preco promo','preço promo']);
+  preencherSelect('mapNome',nome);preencherSelect('mapCodigo',codigo);preencherSelect('mapAnterior',anterior);preencherSelect('mapPromo',promo);
+  document.getElementById('mappingPanel').classList.remove('batch-hidden');
+}
+function lerArquivo(file){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+      if(!rows.length) throw new Error('A planilha não possui dados.');
+      colunas=Object.keys(rows[0]);
+      window._rows=rows;
+      configurarMapeamento();
+      document.getElementById('fileStatus').textContent=`${rows.length} produto(s) encontrado(s). Confira o mapeamento e clique em "Gerar todas".`;
+    }catch(err){alert('Não foi possível ler o arquivo: '+err.message);}
+  };
+  reader.readAsArrayBuffer(file);
+}
+document.getElementById('arquivo').addEventListener('change',e=>{if(e.target.files[0]) lerArquivo(e.target.files[0]);});
+
+function montarLote(){
+  const n=document.getElementById('mapNome').value,c=document.getElementById('mapCodigo').value,a=document.getElementById('mapAnterior').value,p=document.getElementById('mapPromo').value;
+  lote=(window._rows||[]).map((r,i)=>({nome:r[n],codigo:r[c],anterior:r[a],promo:r[p],index:i+1}));
+  return lote;
+}
+async function gerarTodas(){
+  montarLote();
+  if(!lote.length){alert('Importe uma planilha primeiro.');return;}
+  const grid=document.getElementById('previewGrid');grid.innerHTML='';
+  for(const item of lote){
+    preencherPlaca(item);
+    await new Promise(r=>requestAnimationFrame(r));
+    const canvas=await html2canvas(document.getElementById('tagCard'),{scale:1.2,backgroundColor:'#fff'});
+    const div=document.createElement('div');div.className='mini-item';
+    const img=document.createElement('img');img.className='mini-card';img.src=canvas.toDataURL('image/png');img.style.width='170px';img.style.height='auto';
+    const lab=document.createElement('div');lab.className='mini-label';lab.textContent=`${item.index}. ${item.nome||'PRODUTO'}`;
+    div.appendChild(img);div.appendChild(lab);grid.appendChild(div);
+  }
+  document.getElementById('previewLabel').textContent=`Pré-visualização — ${lote.length} placas`;
+  preencherPlaca(lote[0]);
+}
+async function canvasDaPlaca(item){
+  preencherPlaca(item);
+  await new Promise(r=>requestAnimationFrame(r));
+  if(document.fonts&&document.fonts.ready) await document.fonts.ready;
+  return html2canvas(document.getElementById('tagCard'),{scale:3,backgroundColor:'#fff'});
+}
+function nomeArquivo(item){
+  const base=String(item.nome||'produto').replace(/[<>:"/\\|?*]+/g,' ').trim().replace(/\s+/g,' ').slice(0,70);
+  return `${String(item.index).padStart(3,'0')}-${base||'produto'}`;
+}
+async function baixarTodasPNG(){
+  if(!lote.length) montarLote();
+  if(!lote.length){alert('Importe uma planilha e gere o lote primeiro.');return;}
+  const zip=new JSZip();
+  for(const item of lote){
+    const canvas=await canvasDaPlaca(item);
+    zip.file(nomeArquivo(item)+'.png',canvas.toDataURL('image/png').split(',')[1],{base64:true});
+  }
+  const blob=await zip.generateAsync({type:'blob'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='placas-promocionais.zip';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+async function baixarTodasPDF(){
+  if(!lote.length) montarLote();
+  if(!lote.length){alert('Importe uma planilha e gere o lote primeiro.');return;}
+  const {jsPDF}=window.jspdf;
+  let pdf=null;
+  for(const item of lote){
+    const canvas=await canvasDaPlaca(item),img=canvas.toDataURL('image/png');
+    const w=100,h=w*(canvas.height/canvas.width);
+    if(!pdf) pdf=new jsPDF({orientation:'portrait',unit:'mm',format:[w,h]});
+    else pdf.addPage([w,h],'portrait');
+    pdf.addImage(img,'PNG',0,0,w,h);
+  }
+  pdf.save('placas-promocionais.pdf');
+  if(lote.length) preencherPlaca(lote[0]);
+}
+function limparLote(){
+  lote=[];window._rows=[];colunas=[];document.getElementById('previewGrid').innerHTML='';
+  document.getElementById('mappingPanel').classList.add('batch-hidden');
+  document.getElementById('previewLabel').textContent='Pré-visualização';
+  document.getElementById('arquivo').value='';
+  gerarPlaca();
+}
+async function baixarPNG(){
+  const canvas=await html2canvas(document.getElementById('tagCard'),{scale:3,backgroundColor:'#fff'});
+  const link=document.createElement('a');link.download='placa-promocional.png';link.href=canvas.toDataURL('image/png');link.click();
+}
+async function baixarPDF(){
+  const canvas=await html2canvas(document.getElementById('tagCard'),{scale:3,backgroundColor:'#fff'});
+  const {jsPDF}=window.jspdf,imgData=canvas.toDataURL('image/png'),widthMM=100,heightMM=widthMM*(canvas.height/canvas.width);
+  const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:[widthMM,heightMM]});
+  pdf.addImage(imgData,'PNG',0,0,widthMM,heightMM);pdf.save('placa-promocional.pdf');
+}
+gerarPlaca();
+if(document.fonts&&document.fonts.ready) document.fonts.ready.then(gerarPlaca);
+</script>
+</body>
+</html>
